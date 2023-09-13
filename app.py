@@ -75,10 +75,16 @@ class Resolver():
     def LLL(self, a, b, c):
         a,b,c = a, b, c
         if a<b+c or b<a+c or c<a+b:    
-            alpha = degrees(acos((pow(c,2) - pow(a,2) - pow(b,2))/(-2*a*b)))
-            beta = degrees(acos((pow(b,2) - pow(a,2) - pow(c,2))/(-2*a*c)))
-            gamma = degrees(acos((pow(a,2) - pow(b,2) - pow(c,2))/(-2*b*c)))
-            return alpha, beta, gamma
+            try:
+                print(f"{a=}")
+                print(f"{b=}")
+                print(f"{c=}")
+                alpha = degrees(acos((pow(c,2) - pow(a,2) - pow(b,2))/(-2*a*b)))
+                beta = degrees(acos((pow(b,2) - pow(a,2) - pow(c,2))/(-2*a*c)))
+                gamma = degrees(acos((pow(a,2) - pow(b,2) - pow(c,2))/(-2*b*c)))
+                return alpha, beta, gamma
+            except:
+                return
         return
     
     def LAL(self, side1, angle1, side2):
