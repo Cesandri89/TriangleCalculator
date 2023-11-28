@@ -2,10 +2,9 @@ import sys
 import typing
 import uuid
 from PyQt5 import QtCore
-
-from PyQt5.QtCore import Qt, QPointF
-from PyQt5.QtGui import QPicture, QPainter, QPen, QBrush, QPolygonF, QColor, QPainterPath
-from PyQt5.QtWidgets import QApplication, QToolBar, QCheckBox, QStyle, QToolButton, QMessageBox, QFrame, QWidget, QLabel, QSlider, QGraphicsScene, QDockWidget, QMainWindow, QMenu, QPushButton, QAction, QHBoxLayout, QInputDialog, QVBoxLayout, QGraphicsView
+from PyQt5.QtCore import Qt, QRect, QPointF, QRectF, QLineF, QRegExp
+from PyQt5.QtGui import QPicture, QPainter,QFont, QPen, QBrush, QPolygonF, QColor, QPainterPath, QIntValidator, QDoubleValidator, QKeySequence, QTextOption, QLinearGradient
+from PyQt5.QtWidgets import *
 import pyqtgraph as pg
 from enum import Enum
 from functools import *
@@ -23,44 +22,138 @@ class ActionType(Enum):
     REMOVE_TRIANGLE = 4
 
 class Geometry():
-    def __init__(self, type: GeometryType , value: float):
+    def __init__(self, type: GeometryType , name, value):
         self.type = type
         self.uid = str(uuid.uuid4())
         self.value = value
+        self.name = name
+        self.static = False
         self.between = False
     
 class Triangle(pg.GraphicsObject):
-    def __init__(self, x1, y1, x2, y2, x3, y3, color):
+    def __init__(self, x1, y1, x2, y2, x3, y3, alfa, beta, gamma, color, *args):
         super().__init__()
         self.pen = QPen()
-        self.pen.setWidthF(x2/200)
+        self.pen.setWidthF(0.1)
         self.pen.setJoinStyle(Qt.MiterJoin)
         self.pen.setCapStyle(Qt.PenCapStyle.RoundCap)
         self.picture = QPicture()
         self.painter = QPainter(self.picture)
-        self.triangle = QPolygonF([QPointF(x1, y1,),QPointF(x2, y2,), QPointF(x3, y3,) ])
-        self._generate_picture(color)
+        print("lunghezza: ", args)
+        if len(args) > 0:
+            self.triangle = QPolygonF([QPointF(x1, y1,),QPointF(x2, y2,), QPointF(x3, y3,) ])
+            self.brush = QBrush(color)
+            self.painter.setPen(self.pen)
+            self.painter.setBrush(self.brush)
+            self.painter.drawPolygon(self.triangle, Qt.WindingFill)
+            self.painter.end()
+        else:   
+            self.painter.scale(1,-1)
 
+            # draw angles        
+            self.drawAngle(0,0, 3, 0, alfa, QColor(0,100,0,100))
+            self.drawAngle(x2, y2, 3, 180, -beta, QColor(0,0,255,100))
+            new_gamma = gamma
+            #if gamma > 90:
+            #    new_gamma = 90 + gamma
+            self.drawAngle(x3, y3, 3, -beta, -new_gamma, QColor(255,0,0,100))
 
-    def _generate_picture(self, color):
-        self.brush = QBrush(color)
-        self.painter.setPen(self.pen)
+            
+            #self.drawText(x2, y2-1.5, "β")
+            #self.drawText(x3, y3+0.75, "γ")
+            
+            self.painter.setPen(Qt.black)
+            self.painter.setFont(QFont('Arial', 1))
+            
+            # draw text
+            self.drawText(x1, y1-1.5, "A")
+            self.drawText(x2, y2-1.5, "B")
+            self.drawText(x3, y3+0.75, "C")
+
+            
+            ax = x3+(x2-x3)/2
+            ay = abs((y2-y3)/2)
+            self.drawText(ax+1, ay+1, "a")
+
+            bx = (x3-x1)/2
+            by = abs((y3-y1)/2)
+            self.drawText(bx-1, by+1, "b")
         
-        self.painter.setBrush(self.brush)
-        self.painter.setRenderHint(QPainter.Antialiasing)
-        self.painter.drawPolygon(self.triangle)
-        self.painter.end()
+            cx = x2/2
+            cy = -1.5
+            self.drawText(cx-1, cy, "c")
+            
+            # setup paint options
+            self.brush = QBrush(color)
+            self.painter.scale(1,-1)
+            self.painter.setRenderHint(QPainter.Antialiasing)
+            self.painter.setBrush(self.brush)
 
+            # draw lines
+            # lato a
+            self.pen.setColor(Qt.red)
+            self.painter.setPen(self.pen)
+            self.painter.drawLine(QLineF(x1, y1, x2, y2))
+            # lato c
+            self.pen.setColor(Qt.darkGreen)
+            self.painter.setPen(self.pen)
+            self.painter.drawLine(QLineF(x2, y2, x3, y3))
+            # lato b
+            self.pen.setColor(Qt.blue)
+            self.painter.setPen(self.pen)
+            self.painter.drawLine(QLineF(x1, y1, x3, y3))
+            
+            # draw points
+            self.dotpen = QPen(Qt.black, 0.2 , Qt.DashDotLine, Qt.RoundCap, Qt.RoundJoin)
+            # punto A
+            self.dotpen.setColor(Qt.darkGreen)
+            self.painter.setPen(self.dotpen)         
+            self.painter.drawPoint(QPointF(x1, y1))
+            # punto B
+            self.dotpen.setColor(Qt.blue)
+            self.painter.setPen(self.dotpen)         
+            self.painter.drawPoint(QPointF(x2, y2))
+            # punto C
+            self.dotpen.setColor(Qt.red)
+            self.painter.setPen(self.dotpen)         
+            self.painter.drawPoint(QPointF(x3, y3))
+
+            self.painter.end()
+
+    def drawAngle(self, x, y, radius, startAngle, angle, color):
+        myBrush = QBrush()
+        myBrush.setColor(color)
+        myBrush.setStyle(Qt.SolidPattern)
+        myPen = QPen()
+        myPen.setColor(QColor(255,255,255,255))
+        startPoint = QPointF()
+        center = QPointF(0, 0)
+        myPath = QPainterPath()
+        myPath.moveTo(center)
+        myPath.arcTo(QRectF(-radius,-radius,radius*2, radius*2), startAngle,
+                    angle)
+        myPath.translate(x,-y)
+        myPen.setWidthF(0.01)
+        self.painter.setBrush(myBrush)
+        self.painter.setPen(myPen)
+        self.painter.drawPath(myPath)
+
+    def drawText(self, x, y, text):
+        self.painter.drawText(QRectF(x-25, -y-25, 50, 50), text, QTextOption(Qt.AlignCenter))
+         
     def paint(self, painter, option, widget=None):
         painter.drawPicture(0, 0, self.picture)
 
     def boundingRect(self):
-        return QtCore.QRectF(self.picture.boundingRect())
+        bounds = self.picture.boundingRect()
+        #print(f"x: {bounds.x()} y: {bounds.y()} width: {bounds.width()} height: {bounds.height()}")
+        return QRectF(bounds.x()-19, bounds.y()-19, bounds.width()+40, bounds.height()+40)
 
 class Helper():
     def __init__(self, *args, **kwargs):
         self.lightblue = QColor(173, 216, 230, 120)
         self.lightcoral = QColor(240, 128, 128, 120)
+        self.lightyellow = QColor(255,255,153)
 
     def errorBox(self, text):
         errorBox = QMessageBox()
@@ -76,24 +169,21 @@ class Resolver():
         a,b,c = a, b, c
         if a<b+c or b<a+c or c<a+b:    
             try:
-                print(f"{a=}")
-                print(f"{b=}")
-                print(f"{c=}")
-                alpha = degrees(acos((pow(c,2) - pow(a,2) - pow(b,2))/(-2*a*b)))
+                alpha = degrees(acos((pow(a,2) - pow(b,2) - pow(c,2))/(-2*b*c)))
                 beta = degrees(acos((pow(b,2) - pow(a,2) - pow(c,2))/(-2*a*c)))
-                gamma = degrees(acos((pow(a,2) - pow(b,2) - pow(c,2))/(-2*b*c)))
-                return alpha, beta, gamma
+                gamma = degrees(acos((pow(c,2) - pow(a,2) - pow(b,2))/(-2*a*b)))
+                return [alpha, beta, gamma]
             except:
                 return
         return
     
-    def LAL(self, side1, angle1, side2):
+    def LAL(self, above, alfa, below):
         # calcolo lato mancante
-        side3 = sqrt(pow(side1, 2)+pow(side2,2) - 2*side1*side2*cos(radians(angle1)))
+        opposite = sqrt(pow(above, 2)+pow(below,2) - 2*above*below*cos(radians(alfa)))
         # calcolo dei 2 angoli mancanti
-        angle2 = degrees(asin((side2*sin(radians(angle1)))/side3)) # beta
-        angle3 = degrees(asin((side1*sin(radians(angle1)))/side3)) # gamma 
-        return angle2, angle3, side3
+        beta = degrees(acos((pow(opposite, 2) + pow(below,2) - pow(above, 2))/(2*opposite*below)))
+        gamma = 180 - alfa - beta        
+        return [opposite, beta, gamma]
 
     # l'angolo specificato è adiacente al secondo lato
     def LLA(self, a, b, alpha):
@@ -101,6 +191,7 @@ class Resolver():
         alpha = radians(alpha)
         if sin_beta > 1:
             self.helper.errorBox("Triangolo impossibile")
+        
         if sin_beta == 1:
             if radians(alpha) >= pi/2:        
                 self.helper.errorBox("Triangolo impossibile")
@@ -109,7 +200,7 @@ class Resolver():
                 beta = asin(sin_beta)
                 gamma = pi - beta - radians(alpha)
                 c = a * sin(gamma)/sin(alpha)
-                return [(degrees(beta), degrees(gamma), c)] 
+                return [c, degrees(gamma), degrees(beta)]
         # fino a 2 possibili soluzioni
         elif sin_beta < 1 and sin_beta > 0:
             beta = asin(sin_beta)
@@ -118,7 +209,7 @@ class Resolver():
             if alpha >= pi/2 or (alpha < pi/2 and b < a) or b == a:
                 gamma = pi - beta - alpha
                 c = a * sin(gamma)/sin(alpha)
-                return [(degrees(beta), degrees(gamma), c)]
+                return [degrees(beta), degrees(gamma), c]
             # 2 soluzioni
             elif alpha < pi/2 and b > a:
                 beta2 = pi - beta
@@ -127,43 +218,87 @@ class Resolver():
                 c2 = a * sin(gamma2)/sin(alpha)
                 return [(degrees(beta), degrees(gamma),c1), (degrees(beta2), degrees(gamma2), c2)]
 
-    def ALA(self, angle1, side1, angle2):
-        angle1 = radians(angle1)
-        angle2 = radians(angle2)
-        angle3 = pi - angle1 - angle2
-        side2 = (sin(angle1) * side1)/sin(angle3)
-        side3 = (sin(angle2) * side1)/sin(angle3)
-        return degrees(angle3), side2, side3
+    def ALA(self, alfa, c, beta):
+        alfa = radians(alfa)
+        beta = radians(beta)
+        gamma = pi - alfa - beta
+        a = (sin(alfa) * c)/sin(gamma)
+        b = (sin(beta) * c)/sin(gamma)
+        return [degrees(gamma), a, b]
     
-    def AAL(self, angle1, angle2, side1):
-        angle1 = radians(angle1)
-        angle2 = radians(angle2)
-        angle3 = pi - angle1 - angle2
-        side2 = (side1/sin(angle1))*sin(angle2)
-        side3 = (side1/sin(angle1))*sin(angle3)
-        return degrees(angle3), side2, side3
-
+    def AAL(self, alfa, gamma, c):
+        alfa = radians(alfa)
+        gamma = radians(gamma)
+        beta = pi - alfa - gamma
+        b = (c/sin(gamma))*sin(beta)
+        a = (c/sin(gamma))*sin(alfa)
+        return [degrees(beta), a, b]
 
 class DockElement(QFrame):
 
-    def __init__(self, text, geometry: Geometry, **kwargs):
+    def __init__(self, geometry, static):
         super().__init__()
+        self.isStatic = static
         self.geometry = geometry
         self.checkbox = QCheckBox()
         self.checkbox.setText("compreso tra gli altri 2")
         self.setFrameShape(QFrame.StyledPanel)
-        if "kwargs" in kwargs["kwargs"]:
-            self.setStyleSheet(f"background-color: {kwargs['kwargs']['kwargs']};")
-        self.label = QLabel(text)
         self.hbox = QHBoxLayout()
         self.button = QToolButton()
         self.icon = self.style().standardIcon(QStyle.SP_BrowserStop)
         self.button.setIcon(self.icon)
         self.hbox.addWidget(self.button)
         self.vbox = QVBoxLayout()
-        self.vbox.addWidget(self.label)
+        
         self.setLayout(self.hbox)
+
+        self.textLabel = QLabel()
+        self.valueLabel = QLabel()
+        self.labelBox = QHBoxLayout()
+        self.labelBox.addWidget(self.textLabel)
+        self.labelBox.addWidget(self.valueLabel)
+        self.vbox.addLayout(self.labelBox)
         self.hbox.addLayout(self.vbox)
+        if geometry.type == GeometryType.ANGLE:
+            self.textLabel.setText(f"Angolo {geometry.name}:")  
+            self.valueLabel.setText("{:.1f}°".format(geometry.value))
+        elif geometry.type == GeometryType.SIDE:
+            self.textLabel.setText(f"Lato {geometry.name}:")
+            self.valueLabel.setText("{:.1f}".format(geometry.value))
+        if self.isStatic != True:
+            self.slider = QSlider(Qt.Orientation.Horizontal)
+            self.slider.setSingleStep(1)
+            self.slider.setValue(geometry.value)
+            self.slider.valueChanged.connect(self.sliderValueChanged)
+            if geometry.type == GeometryType.ANGLE:
+                self.slider.setRange(1, 360)
+            elif geometry.type == GeometryType.ANGLE:
+                self.slider.setRange(0, 179)
+            self.vbox.addWidget(self.slider)
+
+    def sliderValueChanged(self, new):
+        self.geometry.value = new
+        if self.geometry.type == GeometryType.ANGLE:
+            self.valueLabel.setText("{:.1f}°".format(new))
+        else:
+            self.valueLabel.setText("{:.1f}".format(new))
+        try:
+            win.graphWidget.removeItem(win.graph_triangle)
+            if win.second_triangle:
+                win.graphWidget.removeItem(win.second_triangle) 
+        except:
+            print("not ready to draw")
+        try:
+            self.setStyleSheet(f"background-color: rgb(255, 255, 255);")
+            params = win.calculate_triangle()
+            win.draw_triangle(*params) 
+        except:
+            self.setStyleSheet(f"background-color: lightcoral;")
+
+
+    #def mouseDoubleClickEvent(self, e):
+    #    prevText = self.label.text()    
+    #    self.label = QLineEdit()
 
     def update_geometry(self, x):
         if x==2:
@@ -184,7 +319,51 @@ class DockElement(QFrame):
             self.checkbox.stateChanged.connect(self.update_geometry)
             self.checkbox.setChecked(self.geometry.between)
             
+class AddParameterDialog(QDialog):
+    def __init__(self, type):
+        super().__init__()
+
+        self.buttonBox = QDialogButtonBox(QDialogButtonBox.Ok)
         
+        # bottone a tendina
+        self.comboBox = QComboBox()
+        self.comboBox.setEditable(True)
+        lineedit = self.comboBox.lineEdit()
+        lineedit.setAlignment(Qt.AlignCenter)
+        lineedit.setReadOnly(True)
+        # casella di testo
+        onlyInt = QIntValidator()
+        if type == GeometryType.SIDE:
+            self.comboBox.addItems(["a", "b", "c"])
+            self.setWindowTitle("Inserisci un lato")
+            onlyInt.setRange(1, 100)
+        elif type == GeometryType.ANGLE:
+            self.comboBox.addItems(["alfa", "beta", "gamma"])
+            self.setWindowTitle("Inserisci un angolo")
+            #
+            onlyInt.setRange(0, 179)
+        self.textInput = QLineEdit()
+        self.textInput.setValidator(onlyInt)
+        # messaggio
+        self.uselessMessage = QLabel("Angolo")
+        # layout secondario orizzontale
+        self.hLayout = QHBoxLayout()
+        #self.hLayout.addWidget(self.uselessMessage)
+        self.hLayout.addWidget(self.comboBox)
+        self.hLayout.addWidget(self.textInput)
+        self.hLayout.addWidget(self.buttonBox)
+        self.hLayout.setStretchFactor(self.comboBox, 2)
+        self.hLayout.setStretchFactor(self.textInput, 2)
+        self.hLayout.setStretchFactor(self.buttonBox, 1)
+        # checkbox
+        #self.checkbox = QCheckBox("Compreso tra gli altri due")
+        #self.checkbox.setChecked(False)
+        # layout principale
+        self.mainLayout = QVBoxLayout()
+        self.mainLayout.addLayout(self.hLayout)
+        #self.mainLayout.addWidget(self.checkbox)
+        self.setLayout(self.mainLayout)
+
 class Window(QMainWindow):
 
     def __init__(self, parent=None):
@@ -192,6 +371,7 @@ class Window(QMainWindow):
         self.triangle = []
         self.is_check = False
         self.helper = Helper()
+        self.second_triangle = None
         self.resolver = Resolver(self.helper)
         self.setWindowTitle("Risolutore di triangoli")
         self.setGeometry(0,0,720, 480)
@@ -199,6 +379,7 @@ class Window(QMainWindow):
         self.createActions()
         self.createToolBar()
         self.connectActions()
+        self.draw_triangle(10, 10, 10, 60, 60, 60)
 
 
     def order_dock(self):
@@ -248,52 +429,285 @@ class Window(QMainWindow):
             for action in self.toolBar.actions():
                 action.setDisabled(True)
             self.toolBar.actions()[3].setDisabled(True)
-
-    def draw_triangle(self, is_between):
+    
+    def draw_triangle(self, a, b, c, alfa, beta, gamma, *args):
         side_list = [geometry.value for geometry in self.triangle if geometry.type ==GeometryType.SIDE]
         angle_list = [geometry.value for geometry in self.triangle if geometry.type ==GeometryType.ANGLE]   
-        #print(f"{side_list=}")
-        #print(f"{angle_list=}")
-        if is_between == False:
-            self.graph_triangle = Triangle(0, 0, side_list[0], 0, side_list[1]*cos(radians(angle_list[2])), side_list[1]*sin(radians(angle_list[2])), self.helper.lightblue)
-            self.graphWidget.addItem(self.graph_triangle)
-            if len(angle_list) > 3:
-                self.graph_triangle2 = Triangle(0, 0, side_list[0], 0, side_list[1]*cos(radians(angle_list[4])), side_list[1]*sin(radians(angle_list[4])), self.helper.lightcoral)
-                self.graphWidget.addItem(self.graph_triangle2)
-        else:
-            self.graph_triangle = Triangle(0, 0, side_list[0], 0, side_list[1]*cos(radians(angle_list[0])), side_list[1]*sin(radians(angle_list[0])), self.helper.lightblue)
-            self.graphWidget.addItem(self.graph_triangle)
-            
+        if len(args) > 0:      
+            self.second_triangle = Triangle(0, 0, c, 0, cos(radians(alfa))*b, sin(radians(alfa))*b, alfa, beta, gamma, self.helper.lightyellow, 1)
+            self.graphWidget.addItem(self.second_triangle)
+            return
+        self.graph_triangle = Triangle(0, 0, c, 0, cos(radians(alfa))*b, sin(radians(alfa))*b, alfa, beta, gamma, self.helper.lightblue)
+        self.graphWidget.addItem(self.graph_triangle)
+
+    def get_by_name(self, *args):
+        output = []
+        for param in args:
+            found = False
+            for geometry in self.triangle:
+                if param == geometry.name:
+                    found = True
+                    output.append(int(geometry.value)) 
+            if not found:
+                output.append(None)
+        return output    
+    
+    def update_nonstatic_params(self, *args):
+        nsplit = int(len(args)/2)
+        for i in range(self.vLayout.count()-1):
+            myWidget = self.vLayout.itemAt(i).widget()
+            found = False
+            for param, value in zip(args[:nsplit], args[nsplit:]):
+                if found:
+                    continue
+                if myWidget.geometry.name == param:
+                    found = True
+                    myWidget.slider.setValue(value) 
+        
+    
+        
+    def get_geoms_by_type(self, type):
+        output = [geometry for geometry in self.triangle if geometry.type == type and geometry.static != True]
+        return output
+    
+    def display_error_message(self, message):
+        pass
 
     def calculate_triangle(self):
-        self.is_between = False
-        side_list = [geometry.value for geometry in self.triangle if geometry.type ==GeometryType.SIDE]
-        angle_list = [geometry.value for geometry in self.triangle if geometry.type ==GeometryType.ANGLE]
-        if len(self.triangle) < 3 or len(self.triangle) > 3:
-            self.helper.errorBox("Sono richiesti esattamente 3 parametri")
-            return -1
-        # caso AAA
-        if len(angle_list) == 3:         
-            self.helper.errorBox("Esiste un numero infinito di triangolo dati 3 angoli")
-            return -1
-        # caso LLL
-        if len(side_list) == 3:
-            result = self.resolver.LLL(side_list[0], side_list[1], side_list[2])
-            if result:
+        angles = self.get_geoms_by_type(GeometryType.ANGLE)
+        sides = self.get_geoms_by_type(GeometryType.SIDE)
+        if len(angles) == 1 and len(sides) == 2:
+            unique_angle = angles[0]
+            if unique_angle.between:
+                if unique_angle.name == "alfa":       
+                    alfa = unique_angle.value 
+                    b, c = self.get_by_name("b", "c")
+                    if all([b,c]) != True:
+                        self.helper.errorBox("Parametri non validi")
+                        return -1
+                    #print(b," ",int(c))
+                    a, beta, gamma = self.resolver.LAL(int(b), int(alfa), int(c))
+                    self.add_or_update_parameter(GeometryType.SIDE, "a", a, True)
+                    self.add_or_update_parameter(GeometryType.ANGLE, "beta", beta, True)
+                    self.add_or_update_parameter(GeometryType.ANGLE, "gamma", gamma, True)
+                elif unique_angle.name == "beta":   
+                    beta = unique_angle.value 
+                    a, c = self.get_by_name("a", "c")   
+                    if all([a,c]) != True:
+                        self.helper.errorBox("Parametri non validi")
+                        return -1  
+                    b, gamma, alfa = self.resolver.LAL(int(c), int(beta), int(a))
+                    self.add_or_update_parameter(GeometryType.SIDE, "b", b, True)
+                    self.add_or_update_parameter(GeometryType.ANGLE, "gamma", gamma, True)
+                    self.add_or_update_parameter(GeometryType.ANGLE, "alfa", alfa, True)
+                elif unique_angle.name == "gamma":
+                    gamma = unique_angle.value  
+                    b, a = self.get_by_name("b", "a")
+                    if all([b,a]) != True:
+                        self.helper.errorBox("Parametri non validi")
+                        return -1
+                    c, beta, alfa = self.resolver.LAL(int(b), int(gamma), int(a))
+                    print(f"c: {c} alfa: {alfa} beta: {beta}")
+                    
+                    #geoms = self.update_nonstatic_params("a", "b", "gamma", a, b, gamma)
+                    self.add_or_update_parameter(GeometryType.SIDE, "c", c, True)
+                    self.add_or_update_parameter(GeometryType.ANGLE, "alfa", alfa, True)
+                    self.add_or_update_parameter(GeometryType.ANGLE, "beta", beta, True)
+            else:
+                if unique_angle.name == "alfa":
+                    alfa = unique_angle.value
+                    if all(self.get_by_name("a", "b")):
+                        a,b = self.get_by_name("a", "b")
+                        print("caso 1")
+                        output = self.resolver.LLA(a, b, alfa)
+                        if len(output) == 2:
+                            beta, gamma, c = output[0]
+                            beta2, gamma2, c2 = output[1]
+                            self.add_or_update_parameter(GeometryType.SIDE, "c2", c2, True, 1)
+                            self.add_or_update_parameter(GeometryType.ANGLE, "beta2", beta2, True, 1)
+                            self.add_or_update_parameter(GeometryType.ANGLE, "gamma2", gamma2, True, 1)
+                            self.draw_triangle(a, b, c2, alfa, beta2, gamma2, 1)
+                        else:
+                            beta, gamma, c = output
+                        self.add_or_update_parameter(GeometryType.SIDE, "c", c, True)
+                        self.add_or_update_parameter(GeometryType.ANGLE, "beta", beta, True)
+                        self.add_or_update_parameter(GeometryType.ANGLE, "gamma", gamma, True)
+                    elif all(self.get_by_name("a","c")):
+                        a,c = self.get_by_name("a", "c")
+                        print("caso 2")
+                        output = self.resolver.LLA(a, c, alfa)
+                        if len(output) == 2:
+                            gamma, beta, b = output[0]
+                            gamma2, beta2, b2 = output[1]
+                            self.add_or_update_parameter(GeometryType.SIDE, "b2", b2, True)
+                            self.add_or_update_parameter(GeometryType.ANGLE, "beta2", beta2, True)
+                            self.add_or_update_parameter(GeometryType.ANGLE, "gammma2", gamma2, True)
+                            self.draw_triangle(a, b2, c, alfa, beta2, gamma2, 1)
+                        else:
+                            gamma, beta, b = output
+                        self.add_or_update_parameter(GeometryType.SIDE, "b", b, True)
+                        self.add_or_update_parameter(GeometryType.ANGLE, "beta", beta, True)
+                        self.add_or_update_parameter(GeometryType.ANGLE, "gammma", gamma, True)                   
+                    else:
+                        self.helper.errorBox("Parametri non validi")
+                        return -1
+                elif unique_angle.name == "beta":
+                    beta = unique_angle.value
+                    if all(self.get_by_name("b", "c")):
+                        b,c = self.get_by_name("b", "c")
+                        print("caso 3")
+                        output = self.resolver.LLA(b, c, beta)
+                        if len(output) == 2:
+                            gamma, alfa, a = output[0]
+                            gamma2, alfa2, a2 = output[1]    
+                            self.add_or_update_parameter(GeometryType.SIDE, "a2", a2, True,1)
+                            self.add_or_update_parameter(GeometryType.ANGLE, "alfa2", alfa2, True,1)
+                            self.add_or_update_parameter(GeometryType.ANGLE, "gamma2", gamma2, True,1)
+                            self.draw_triangle(a2, b, c, alfa2, beta, gamma2, 1)
+                        else:
+                            gamma, alfa, a = output
+                        self.add_or_update_parameter(GeometryType.SIDE, "a", a, True)
+                        self.add_or_update_parameter(GeometryType.ANGLE, "alfa", alfa, True)
+                        self.add_or_update_parameter(GeometryType.ANGLE, "gamma", gamma, True)
+                    elif all(self.get_by_name("a","b")):
+                        a,b = self.get_by_name("a", "b")
+                        print("caso 4")
+                        output = self.resolver.LLA(b, a, beta)
+                        if len(output) == 2:
+                            alfa, gamma, c = output[0]
+                            alfa2, gamma2, c2 = output[1]
+                            self.add_or_update_parameter(GeometryType.SIDE, "c2", c2, True, 1)
+                            self.add_or_update_parameter(GeometryType.ANGLE, "alfa2", alfa2, True, 1)
+                            self.add_or_update_parameter(GeometryType.ANGLE, "gammma2", gamma2, True, 1)    
+                            self.draw_triangle(a, b, c2, alfa2, beta, gamma2, 1)
+                        else:
+                            alfa, gamma, c = output
+                        self.add_or_update_parameter(GeometryType.SIDE, "c", c, True)
+                        self.add_or_update_parameter(GeometryType.ANGLE, "alfa", alfa, True)
+                        self.add_or_update_parameter(GeometryType.ANGLE, "gammma", gamma, True)                   
+                    else:
+                        self.helper.errorBox("Parametri non validi")
+                        return -1
+                elif unique_angle.name == "gamma":
+                    gamma = unique_angle.value
+                    if all(self.get_by_name("a", "c")):
+                        a, c = self.get_by_name("a", "c")
+                        print("caso 5")
+                        output = self.resolver.LLA(c, a, gamma)
+                        if len(output) == 2:
+                            alfa, beta, b = output[0]
+                            alfa2, beta2, b2 = output[1]
+                            self.add_or_update_parameter(GeometryType.SIDE, "b2", b, True, 1)
+                            self.add_or_update_parameter(GeometryType.ANGLE, "alfa2", alfa, True, 1)
+                            self.add_or_update_parameter(GeometryType.ANGLE, "beta2", beta, True, 1)
+                            self.draw_triangle(a, b2, c, alfa2, beta2, gamma, 1)
+                        else:
+                            alfa, beta, b = output
+                        self.add_or_update_parameter(GeometryType.SIDE, "b", b, True)
+                        self.add_or_update_parameter(GeometryType.ANGLE, "alfa", alfa, True)
+                        self.add_or_update_parameter(GeometryType.ANGLE, "beta", beta, True)
+                    elif all(self.get_by_name("c","b")):
+                        c, b = self.get_by_name("c", "b")
+                        print("caso 6")
+                        output = self.resolver.LLA(c, b, gamma)
+                        if len(output) == 2:
+                            beta, alfa, a = output[0]
+                            beta2, alfa2, a2 = output[1]
+                            self.add_or_update_parameter(GeometryType.SIDE, "a2", a2, True, 1)
+                            self.add_or_update_parameter(GeometryType.ANGLE, "alfa2", alfa2, True, 1)
+                            self.add_or_update_parameter(GeometryType.ANGLE, "beta2", beta2, True, 1)                   
+                            self.draw_triangle(a2, b, c, alfa2, beta2, gamma, 1)
+                        else:
+                            beta, alfa, a = output
+                        self.add_or_update_parameter(GeometryType.SIDE, "a", a, True)
+                        self.add_or_update_parameter(GeometryType.ANGLE, "alfa", alfa, True)
+                        self.add_or_update_parameter(GeometryType.ANGLE, "beta", beta, True)                   
+                    else:
+                        self.helper.errorBox("Parametri non validi")
+                        return -1
+        elif len(sides) == 3:
+            a, b, c = self.get_by_name("a", "b", "c")
+            alfa, beta, gamma = self.resolver.LLL(a, b, c)
+            print(f"alfa: {alfa} beta: {beta} gamma: {gamma}")
+            self.add_or_update_parameter(GeometryType.ANGLE, "alfa", alfa, True)
+            self.add_or_update_parameter(GeometryType.ANGLE, "beta", beta, True)
+            self.add_or_update_parameter(GeometryType.ANGLE, "gamma", gamma, True)
+            """if result:
                 for angle in result:
                     self.add_parameter(GeometryType.ANGLE, angle)
                 return result
             else:
                 self.helper.errorBox("I lati non rispettano la disuguaglianza triangolare")
-                return 
+                return -1"""
+        elif len(angles) == 3:         
+             self.helper.errorBox("Esiste un numero infinito di triangolo dati 3 angoli")
+             return -1
+        elif len(angles) == 2 and len(sides) == 1:
+            unique_side = sides[0]
+            if angles[0].value + angles[1].value > 180:
+                self.helper.errorBox("La somma dei 2 angoli deve essere minore di 180°")
+                return
+            if unique_side.between:
+                print("caso ALA")
+                if unique_side.name == "c":
+                    c = unique_side.value
+                    alfa, beta = self.get_by_name("alfa", "beta")
+                    if all([alfa, beta]) != True:
+                        self.helper.errorBox("Parametri non validi")
+                        return -1
+                    gamma, a, b = self.resolver.ALA(alfa, c, beta)
+                elif unique_side.name == "a":
+                    a = unique_side.value
+                    beta, gamma = self.get_by_name("beta", "gamma")
+                    if all([beta, gamma]) != True:
+                        self.helper.errorBox("Parametri non validi")
+                        return -1
+                    alfa, b, c = self.resolver.ALA(beta, a, gamma)
+                elif unique_side.name == "b":
+                    b = unique_side.value
+                    gamma, alfa = self.get_by_name("gamma", "alfa")
+                    if all([gamma, alfa]) != True:
+                        self.helper.errorBox("Parametri non validi")
+                        return -1
+                    beta, c, a = self.resolver.ALA(gamma, b, alfa)
+            else:    
+                if unique_side.name == "c":
+                    print("caso c")
+                    c = unique_side.value
+                    if all(self.get_by_name("alfa", "gamma")):
+                        alfa, gamma = self.get_by_name("alfa", "gamma")
+                        beta, a, b = self.resolver.AAL(alfa, gamma, c)
+                    elif all(self.get_by_name("beta", "gamma")):
+                        beta, gamma = self.get_by_name("beta", "gamma")
+                        alfa, b, a = self.resolver.AAL(angle_list[0], angle_list[1], side_list[0])
+                    else:
+                        return
+                elif unique_side.name == "a":
+                    print("caso a")
+                    a = unique_side.value
+                    if all(self.get_by_name("beta", "alfa")):
+                        beta, alfa = self.get_by_name("beta", "alfa")
+                        gamma, b, c = self.resolver.AAL(beta, alfa, a)
+                    elif all(self.get_by_name("gamma", "alfa")):
+                        gamma, alfa = self.get_by_name("gamma", "alfa")
+                        beta, c, b = self.resolver.AAL(gamma, alfa, a)
+                    else:
+                        return
+                elif unique_side.name == "b":
+                    print("caso b")
+                    b = unique_side.value
+                    if all(self.get_by_name("gamma", "beta")):
+                        gamma, beta = self.get_by_name("gamma", "beta")
+                        alfa, c, a = self.resolver.AAL(gamma, beta, b)
+                    elif all(self.get_by_name("alfa", "beta")):
+                        beta, gamma = self.get_by_name("beta", "gamma")
+                        gamma, a, c = self.resolver.AAL(alfa, beta, b)
+                    else:
+                        return 
+        """        
         # caso LAL e LLA
-        # se sono dati 2 lati e un angolo
-        if len(angle_list) == 1 and len(side_list) == 2:
-            self.is_between = False
-            # controlla se l'angolo è compreso
-            for geometry in self.triangle:
-                if geometry.between:
-                    self.is_between = True
+        # # se sono dati 2 lati e un angolo
+        elif len(angles) == 1 and len(sides) == 2:
             if self.is_between:
                 result = self.resolver.LAL(side_list[0], angle_list[0], side_list[1]) 
                 #print(result)
@@ -319,43 +733,26 @@ class Window(QMainWindow):
                     self.add_parameter(GeometryType.SIDE, result[n][2], kwargs=color)
             #if result == -1:
             #self.helper.errorBox("Il triangolo è ambiguo")                        
-            return result 
+            return result"""
     
-        if len(angle_list) == 2 and len(side_list) == 1:
-            if radians(angle_list[0]) + radians(angle_list[1]) >= pi:
-                self.helper.errorBox("La somma dei 2 angoli deve essere minore di 180°")
-                return
-            self.is_between = False
-            for geometry in self.triangle:
-                if geometry.between:
-                    self.is_between = True
-            if self.is_between:
-                result = self.resolver.ALA(angle_list[0], side_list[0], angle_list[1])
-                if result:
-                    self.add_parameter(GeometryType.ANGLE, result[0])
-                    for x in result[1:3]:
-                        self.add_parameter(GeometryType.SIDE, x)
-                    return result
-            result = self.resolver.AAL(angle_list[0], angle_list[1], side_list[0])
-            if result:
-                self.add_parameter(GeometryType.ANGLE, result[0])
-                for x in result[1:3]:
-                    self.add_parameter(GeometryType.SIDE, x)
-                return result
-            
-    def resolve_triangle(self):
-        result = self.calculate_triangle()
-        if result:
-            #if len(angle_list) <= 3:
-            #    self.order_dock()
-            self.draw_triangle(self.is_between)
-            for i in range(self.vLayout.count()-1):
-                myWidget = self.vLayout.itemAt(i).widget()
-                myWidget.geometry.between = False
-                myWidget.updateUI()
-            self.update_toolbar()
-            
 
+        return [a, b, c, alfa, beta, gamma]       
+    
+    def resolve_triangle(self):
+        if self.graph_triangle != None:
+            self.graphWidget.removeItem(self.graph_triangle)
+        a, b, c, alfa, beta, gamma = self.calculate_triangle()
+        self.draw_triangle(int(a), int(b), int(c), int(alfa), int(beta), int(gamma))
+        #print(self.triangle)
+        for i in range(self.vLayout.count()-1):
+            myWidget = self.vLayout.itemAt(i).widget()
+            #myWidget.geometry.between = False
+            myWidget.updateUI()
+        self.update_toolbar()
+        #if len(angle_list) <= 3:
+        #    self.order_dock()
+        
+        
     def clearLayout(self):
         self.triangle = []
         for action in self.toolBar.actions():
@@ -367,7 +764,7 @@ class Window(QMainWindow):
         self.toolBar.actions()[3].setDisabled(True)
         self.graphWidget.removeItem(self.graph_triangle)
         try:
-            self.graphWidget.removeItem(self.graph_triangle2)
+            self.graphWidget.removeItem(self.second_triangle)
         except:
             pass       
         for i in range(self.vLayout.count()-1):
@@ -375,6 +772,7 @@ class Window(QMainWindow):
             myWidget.deleteLater()    
 
     def remove_parameter(self, e: DockElement):
+        print(self.triangle)
         # 1 disabilita l'opzione compreso
         # 2 aggiorna la ui di ogni dockelement
         uids = [geometry.uid for geometry in self.triangle]
@@ -410,7 +808,7 @@ class Window(QMainWindow):
             self.graphWidget.removeItem(self.graph_triangle)
         if len(self.triangle) == 8:
             self.graphWidget.removeItem(self.graph_triangle)
-            self.graphWidget.removeItem(self.graph_triangle2)
+            self.graphWidget.removeItem(self.second_triangle)
             
         if len(self.triangle) == 2:
             for i in range(self.vLayout.count()-1):
@@ -421,57 +819,76 @@ class Window(QMainWindow):
                 myWidget.setStyleSheet("")
                 myWidget.updateUI()
         self.update_toolbar()
-
-    def add_parameter(self, data: GeometryType, value, **kwargs):
-        # 1 sceglie a quale geometria aggiungere l'opzione compreso (solo se ci sono 3 geometrie)
-        # 2 aggiunge il nuovo dockelement al dock
-        # 3 aggiorna la ui di ogni dockelement
-        new_geometry = Geometry(data, value)
-        self.triangle.append(new_geometry)
-        self.update_toolbar()
-        # controlla se aggiungere l'opzione compreso a uno dei parametri
-        if len(self.triangle) == 3:
-            # se tutti i parametri sono dello stesso tipo non c'è bisogno di specificare se l'angolo/il lato è compreso
-            if all(geometry.type==GeometryType.ANGLE for geometry in self.triangle) != True or all(geometry.type==GeometryType.SIDE for geometry in self.triangle) != True:
-                unique_angle = [x for x in self.triangle if x.type == GeometryType.ANGLE]
-                unique_side = [y for y in self.triangle if y.type == GeometryType.SIDE]
-                # non possono essere entrambe vere
-                if len(unique_angle) == 1:
-                    for x in self.triangle:
-                        if x.type == GeometryType.ANGLE :
-                            x.between = True
-                elif len(unique_side) == 1:
-                    for y in self.triangle:
-                        if y.type == GeometryType.SIDE :
-                            y.between = True
-        # add the dockelement to the dock                    
-        if new_geometry.type==GeometryType.ANGLE:
-            e = DockElement("Angolo: {v:.1f}°".format(v=new_geometry.value), new_geometry, kwargs=kwargs)
-        elif new_geometry.type==GeometryType.SIDE:
-            e =  DockElement("Lato: {v:.1f}".format(v=new_geometry.value), new_geometry, kwargs=kwargs)
+        print(self.triangle)        
+     
+    def add_or_update_parameter(self, type, name, value, static, *args):
+        new_geometry = Geometry(type, name, value)
+        if static:
+            new_geometry.static = True
+            foo = self.get_by_name(name)
+            # check if param already exists
+            if self.get_by_name(name)[0] != None:
+                # replace existing param
+                for i in range(self.vLayout.count()-1):
+                    myWidget = self.vLayout.itemAt(i).widget()
+                    if myWidget.geometry.name == name:
+                        if type == GeometryType.ANGLE:
+                            myWidget.valueLabel.setText("{:.1f}°".format(value))
+                            return
+                        myWidget.valueLabel.setText("{:.1f}".format(value))
+                        return 
+                return
+            self.triangle.append(new_geometry)
+        else:
+            self.triangle.append(new_geometry)
+            self.update_toolbar()
+            # 1 sceglie a quale geometria aggiungere l'opzione compreso (solo se ci sono 3 geometrie)
+            # 2 aggiunge il nuovo dockelement al dock
+            # 3 aggiorna la ui di ogni dockelement
+            # controlla se aggiungere l'opzione compreso a uno dei parametri
+            if len(self.triangle) == 3:
+                # se tutti i parametri sono dello stesso tipo non c'è bisogno di specificare se l'angolo/il lato è compreso
+                if all(geometry.type==GeometryType.ANGLE for geometry in self.triangle) != True or all(geometry.type==GeometryType.SIDE for geometry in self.triangle) != True:
+                    unique_angle = [x for x in self.triangle if x.type == GeometryType.ANGLE]
+                    unique_side = [y for y in self.triangle if y.type == GeometryType.SIDE]
+                    # non possono essere entrambe vere
+                    if len(unique_angle) == 1:
+                        for x in self.triangle:
+                            if x.type == GeometryType.ANGLE :
+                                x.between = True
+                    elif len(unique_side) == 1:
+                        for y in self.triangle:
+                            if y.type == GeometryType.SIDE :
+                                y.between = True
+        # add the dockelement to the dock
+        e = DockElement(new_geometry, static)
+        if len(args) > 0:
+           e.setStyleSheet("background-color: lightyellow;")
         e.button.clicked.connect(partial(self.remove_parameter, e))
         self.vLayout.insertWidget(self.vLayout.count()-1, e)
         for i in range(self.vLayout.count()-1):
             myWidget = self.vLayout.itemAt(i).widget()
             myWidget.updateUI()
-            
-    def select_parameter(self, data: GeometryType):
-        dlg = QInputDialog(self)
-        dlg.setInputMode(QInputDialog.IntInput)
-        dlg.setWindowTitle("Aggiungi Parametro")
-        dlg.setLabelText("Inserisci un valore:")
-        if data == GeometryType.SIDE:
-            dlg.setIntRange(1, 1000)
-        elif data == GeometryType.ANGLE:
-            dlg.setIntRange(1, 179)
-        dlg.intValueSelected.connect(partial(self.add_parameter, data))
-        dlg.exec()
+        
+
+    def on_add_parameter(self, dialog, type):
+        name = dialog.comboBox.currentText()
+        value = int(dialog.textInput.text())
+        
+        self.add_or_update_parameter(type, name, value, False)
+
+        dialog.close()
+
+    def select_parameter(self, type):
+        dialog = AddParameterDialog(type)
+        dialog.buttonBox.accepted.connect(partial(self.on_add_parameter, dialog, type))
+        dialog.exec()
     
     def setupLayout(self):        
         self.graphWidget = pg.PlotWidget()
         self.graphWidget.setAspectLocked(ratio=1)
         self.setCentralWidget(self.graphWidget)
-
+        
         pen = pg.mkPen(color=(255, 0, 0),width=5)
         self.graphWidget.showGrid(x=True, y=True)
         self.graphWidget.setBackground('w')
@@ -491,6 +908,7 @@ class Window(QMainWindow):
         
     def connectActions(self):
         for action in self.toolBar.actions():
+            print(action)
             if action.data() == ActionType.RESOLVE_TRIANGLE:
                 action.triggered.connect(self.resolve_triangle)
             if action.data() == ActionType.REMOVE_TRIANGLE:
@@ -514,6 +932,11 @@ class Window(QMainWindow):
         self.addAngleAction.setData(GeometryType.ANGLE) # uguale a ActionType.ADD_ANGLE
         self.addSideAction = QAction("Aggiungi Lato", self)
         self.addSideAction.setData(GeometryType.SIDE) # uguale a ActionType.ADD_SIDE
+        
+        self.addAngleShortcut= QShortcut(QKeySequence("Ctrl+A"), self)
+        self.addAngleShortcut.activated.connect(partial(self.select_parameter, GeometryType.ANGLE))
+        self.addSideShortcut = QShortcut(QKeySequence("Ctrl+L"), self)
+        self.addSideShortcut.activated.connect(partial(self.select_parameter, GeometryType.SIDE))
 
     def createToolBar(self):
         # create tool bar
